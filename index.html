@@ -1,0 +1,118 @@
+<!doctype html><html lang="es"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover"><title>Control de Estructuras · DNDO</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+:root{--bg:#f5f6f8;--fg:#1b1f24;--card:#fff;--bd:#d8dce2;--ac:#1f5fbf;--mut:#66707c;--add:#d5f0d9;--del:#f8d7d7;--warn:#fff2cc;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media(prefers-color-scheme:dark){:root:not([data-theme=light]){--bg:#13161a;--fg:#e6e9ed;--card:#1c2026;--bd:#2f353d;--ac:#6ea2f0;--mut:#98a2ae;--add:#1f4a2a;--del:#552626;--warn:#4a3f17}}
+:root[data-theme=dark]{--bg:#13161a;--fg:#e6e9ed;--card:#1c2026;--bd:#2f353d;--ac:#6ea2f0;--mut:#98a2ae;--add:#1f4a2a;--del:#552626;--warn:#4a3f17}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--fg);font:15px/1.5 system-ui,Segoe UI,Arial,sans-serif}
+header{background:var(--card);border-bottom:1px solid var(--bd);padding:10px 16px;display:flex;flex-wrap:wrap;gap:8px;align-items:center;position:sticky;top:env(safe-area-inset-top,0px);z-index:5}
+h1{font-size:16px;margin:0 auto 0 0}main{max-width:900px;margin:0 auto;padding:16px}
+button,select,input,textarea{font:inherit;color:inherit;background:var(--card);border:1px solid var(--bd);border-radius:6px;padding:6px 10px}
+button{cursor:pointer}button.p{background:var(--ac);color:#fff;border-color:var(--ac)}button.d{color:#b3261e}
+textarea,input[type=text]{width:100%;margin:2px 0 8px}textarea{min-height:70px}
+.card{background:var(--card);border:1px solid var(--bd);border-radius:8px;padding:12px 14px;margin-bottom:10px}
+.path{font-size:12px;color:var(--mut)}.bar{display:flex;gap:6px;flex-wrap:wrap;margin:8px 0}
+.tag{font-size:11px;padding:1px 7px;border-radius:10px;background:var(--warn)}.tag.new{background:var(--add)}.tag.del{background:var(--del)}
+ins{background:var(--add);text-decoration:none}del{background:var(--del)}
+.al{background:var(--warn);padding:6px 10px;border-radius:6px;margin-bottom:8px;font-size:13px}
+label{font-size:12px;color:var(--mut);display:block}.tabs button.on{border-color:var(--ac);color:var(--ac)}
+.log{font-size:13px;border-bottom:1px solid var(--bd);padding:6px 0}.mut{color:var(--mut)}.wrap{overflow-x:auto}
+</style></head><body>
+<header><h1>Control de Estructuras · DNDO</h1>
+<select id="role" onchange="S.role=this.value;draw()"><option value="jur">Interlocutor (Jurisdicción)</option><option value="adm">Administrador DNDO</option></select>
+<input id="user" type="text" placeholder="Tu nombre" style="width:150px;margin:0" oninput="S.user=this.value;save()"></header>
+<main><div class="bar tabs" id="tabs"></div><div id="v"></div></main>
+<script>
+const $=s=>document.querySelector(s),h=t=>String(t??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const DEF=`estado nacional => ESTADO NACIONAL
+administración pública nacional => Administración Pública Nacional
+administracion publica nacional => Administración Pública Nacional`;
+const mk=(path,name,resp,acc)=>({id:Math.random().toString(36).slice(2),path,name,resp,acc,o:{path:[...path],name,resp,acc:[...acc]},st:''});
+let S={units:[mk(['MINISTERIO DE ECONOMÍA','SECRETARÍA DE POLÍTICA ECONÓMICA','SUBSECRETARÍA DE ANÁLISIS Y MODELACIÓN ECONÓMICA'],'DIRECCIÓN NACIONAL DE ANÁLISIS ECONÓMICO','Colaborar en el desarrollo y aplicación de modelos de análisis macroeconómico que permitan evaluar y fundamentar las políticas del Estado Nacional.',['Asistir a la Subsecretaría en el diseño de modelos de análisis macroeconómico.','Desarrollar modelos de simulación para prever el impacto de políticas económicas.']),
+mk(['MINISTERIO DE ECONOMÍA','SECRETARÍA DE POLÍTICA ECONÓMICA','SUBSECRETARÍA DE ANÁLISIS Y MODELACIÓN ECONÓMICA'],'DIRECCIÓN NACIONAL DE MODELACIÓN ECONÓMICA','Realizar las proyecciones de variables económicas clave mediante modelos estadísticos.',['Desarrollar proyecciones de variables macroeconómicas.','Asistir en la provisión de insumos técnicos a las áreas de la Jurisdicción.'])],
+log:[],title:['PLANILLA ANEXA AL ARTÍCULO X','(ANEXO II)'],hasResp:true,rules:DEF,user:'',role:'jur',tab:'est',q:'',open:null};
+let DB=null,USR=null,SM=null,ME='',names={},pend=false,DBU=[],tm;
+try{const x=JSON.parse(localStorage.getItem('dndo1'));if(x&&x.units)S=Object.assign(S,x)}catch(e){}
+function save(){if(!DB)try{localStorage.setItem('dndo1',JSON.stringify(S))}catch(e){}}
+const who=()=>DB?(names[ME]||'Usuario'):(S.user.trim()||(S.role=='adm'?'DNDO':'Jurisdicción')),uid=()=>DB?ME:who();
+const pu=u=>DB?DB.doc('units/'+u.id).set(JSON.parse(JSON.stringify(u))).catch(e=>alert('No se pudo guardar: '+e.message)):0;
+const addLog=l=>{S.log.unshift(l);if(DB)DB.doc('log/'+Date.now()+'-'+Math.random().toString(36).slice(2,6)).set(l).catch(()=>{})};
+function saveMeta(){save();clearTimeout(tm);tm=setTimeout(()=>DB&&DB.doc('meta/main').set({title:S.title,hasResp:!!S.hasResp,rules:S.rules,crit:S.crit||''}).catch(()=>{}),600)}
+function closeF(){S.open=null;if(pend){pend=false;sync()}else draw()}
+function sync(){if(S.open){pend=true;return}S.units=DBU.slice().sort((a,b)=>(a.n||0)-(b.n||0));draw()}
+const draw0=()=>S.open?pend=true:draw();
+// ---- reglas
+const esc=s=>s.replace(/[.*+?^${}()|[\]\\]/g,'\\$&');
+function rules(){return S.rules.split('\n').map(l=>l.split('=>').map(x=>x.trim())).filter(r=>r[0]&&r[1]).map(r=>[new RegExp('(?<![\\p{L}])'+esc(r[0])+'(?![\\p{L}])','giu'),r[1]])}
+function checks(t){const o=[];rules().forEach(([re,to])=>{for(const m of t.matchAll(re))if(m[0]!==to)o.push([m[0],to])});if(/ {2,}/.test(t))o.push(['(espacio doble)','un solo espacio']);return o}
+function fix(t){rules().forEach(([re,to])=>t=t.replace(re,to));return t.replace(/ {2,}/g,' ')}
+// ---- diff
+function lcs(a,b){const n=a.length,m=b.length,d=Array.from({length:n+1},()=>new Array(m+1).fill(0));for(let i=n-1;i>=0;i--)for(let j=m-1;j>=0;j--)d[i][j]=a[i]===b[j]?d[i+1][j+1]+1:Math.max(d[i+1][j],d[i][j+1]);
+const r=[];let i=0,j=0;while(i<n&&j<m){if(a[i]===b[j]){r.push(['=',a[i]]);i++;j++}else if(d[i+1][j]>=d[i][j+1])r.push(['-',a[i++]]);else r.push(['+',b[j++]])}while(i<n)r.push(['-',a[i++]]);while(j<m)r.push(['+',b[j++]]);return r}
+const wd=(a,b)=>{const r=lcs((a||'').split(/(\s+)/),(b||'').split(/(\s+)/)),o=[];r.forEach(([p,t])=>{const l=o[o.length-1];l&&l[0]==p?l[1]+=t:o.push([p,t])});return o};
+function lineDiff(a,b){const r=lcs(a,b),out=[];let k=0;while(k<r.length){if(r[k][0]=='='){out.push([['=',r[k][1]]]);k++;continue}const D=[],A=[];while(k<r.length&&r[k][0]!='='){(r[k][0]=='-'?D:A).push(r[k][1]);k++}
+for(let i=0;i<Math.max(D.length,A.length);i++)out.push(D[i]!==undefined&&A[i]!==undefined?wd(D[i],A[i]):D[i]!==undefined?[['-',D[i]]]:[['+',A[i]]])}return out}
+const dh=ops=>ops.map(([p,t])=>p=='+'?`<ins>${h(t)}</ins>`:p=='-'?`<del>${h(t)}</del>`:h(t)).join('');
+const head=u=>[...u.path,u.name];
+// ---- vista
+function draw(){if(USR)S.role=USR.canEdit()?'adm':'jur';const adm=S.role=='adm';$('#role').value=S.role;$('#user').value=S.user;$('#role').style.display=$('#user').style.display=USR?'none':'';
+$('#tabs').innerHTML=`<button class="${S.tab=='est'?'on':''}" onclick="S.tab='est';draw()">Estructura</button>`+(adm?`<button class="${S.tab=='cam'?'on':''}" onclick="S.tab='cam';draw()">Cambios (${S.units.filter(chg).length})</button><button class="${S.tab=='cri'?'on':''}" onclick="S.tab='cri';draw()">Criterios</button>`:'');
+if(!adm&&S.tab!='est')S.tab='est';$('#v').innerHTML=S.tab=='est'?est(adm):S.tab=='cam'?cam():cri();if(S.open)alerts();save()}
+const chg=u=>u.st||(u.o&&(u.name!==u.o.name||u.resp!==u.o.resp||head(u).join()!==head({path:u.o.path,name:u.o.name}).join()||u.acc.join('\n')!==u.o.acc.join('\n')));
+function est(adm){const q=S.q.toLowerCase();let s=(DB?(S.units.length?'':'<div class="al">Todavía no hay estructura cargada. El administrador debe importar el Anexo (.docx).</div>'):'<div class="al">Modo local: los datos quedan solo en este navegador.</div>')+`<div class="bar"><input type="text" style="flex:1;margin:0" placeholder="Buscar unidad o texto…" value="${h(S.q)}" oninput="S.q=this.value;draw();document.querySelector('input[placeholder^=Buscar]').focus()"><button class="p" onclick="addU()">+ Incorporar unidad</button>`+(adm?`<button onclick="$('#fi').click()">Importar .docx</button><button onclick="exp(true)">Descargar con cambios</button><button onclick="exp(false)">Descargar limpio</button><input id="fi" type="file" accept=".docx" hidden onchange="imp(this.files[0])">`:'')+`</div>`;
+S.units.filter(u=>!q||(head(u).join(' ')+u.resp+u.acc.join(' ')).toLowerCase().includes(q)).forEach(u=>{s+=S.open==u.id?form(u):`<div class="card"><div class="path">${h(u.path.join(' › '))}</div><b>${h(u.name)}</b> ${u.st=='new'?'<span class="tag new">Nueva</span>':u.st=='del'?'<span class="tag del">Baja solicitada</span>':chg(u)?'<span class="tag">Modificada</span>':''}
+<div class="mut" style="font-size:13px">${h((u.resp||u.acc[0]||'').slice(0,160))}…</div><div class="bar"><button onclick="S.open='${u.id}';draw()">Editar</button><button class="d" onclick="del('${u.id}')">${u.st=='del'?'Deshacer baja':'Eliminar'}</button></div></div>`});return s}
+function form(u){return`<div class="card" style="border-color:var(--ac)"><label>Dependencia (una línea por nivel, de mayor a menor)</label><textarea id="f-path">${h(u.path.join('\n'))}</textarea><label>Denominación de la unidad</label><input type="text" id="f-name" value="${h(u.name)}" oninput="alerts()">
+${S.hasResp?`<label>Responsabilidad primaria</label><textarea id="f-resp" oninput="alerts()">${h(u.resp)}</textarea>`:''}<label>Acciones (una por línea)</label><textarea id="f-acc" style="min-height:160px" oninput="alerts()">${h(u.acc.join('\n'))}</textarea>
+<label>Justificación del cambio</label><input type="text" id="f-note" value="${h(u.note||'')}"><div id="al"></div><div id="ia"></div><div class="bar"><button class="p" onclick="sv('${u.id}')">Guardar cambios</button>${SM?`<button onclick="ia()">Revisar redacción con IA</button>`:''}<button onclick="cancel('${u.id}')">Cancelar</button></div></div>`}
+function alerts(){const t=['f-name','f-resp','f-acc'].map(i=>$('#'+i)?.value||'').join('\n'),c=checks(t);$('#al').innerHTML=c.length?`<div class="al">⚠ Criterio institucional: ${[...new Set(c.map(x=>`“${h(x[0])}” → ${h(x[1])}`))].join(' · ')} <button onclick="autofix()">Corregir</button></div>`:''}
+function autofix(){['f-name','f-resp','f-acc'].forEach(i=>{const e=$('#'+i);if(e)e.value=fix(e.value)});alerts()}
+function sv(id){const u=S.units.find(x=>x.id==id),n={path:$('#f-path').value.split('\n').map(x=>fix(x.trim())).filter(Boolean),name:fix($('#f-name').value.trim()),resp:$('#f-resp')?fix($('#f-resp').value.trim()):'',acc:$('#f-acc').value.split('\n').map(x=>fix(x.trim())).filter(Boolean)};
+const L=(f,a,b)=>a!==b&&addLog({t:new Date().toISOString(),u:uid(),id,un:n.name,f,a,b,note:$('#f-note').value});
+L('Dependencia',u.path.join(' › '),n.path.join(' › '));L('Denominación',u.name,n.name);L('Responsabilidad primaria',u.resp,n.resp);L('Acciones',u.acc.join('\n'),n.acc.join('\n'));
+Object.assign(u,n,{note:$('#f-note').value});pu(u);closeF()}
+function cancel(id){const u=S.units.find(x=>x.id==id);if(u.st=='new'&&!u.name){S.units=S.units.filter(x=>x!==u)}closeF()}
+function addU(){const u={id:Math.random().toString(36).slice(2),path:[],name:'',resp:'',acc:[],o:null,st:'new',n:Math.min(0,...S.units.map(x=>x.n||0))-1};S.units.unshift(u);S.open=u.id;draw()}
+function del(id){const u=S.units.find(x=>x.id==id);const nw=u.st=='new';if(nw){S.units=S.units.filter(x=>x!==u);DB&&DB.doc('units/'+id).delete().catch(()=>{})}else{u.st=u.st=='del'?'':'del';pu(u)}addLog({t:new Date().toISOString(),u:uid(),id,un:u.name,f:'Unidad',a:'',b:nw?'Incorporación retirada':u.st=='del'?'Baja solicitada':'Baja deshecha'});draw()}
+function cam(){let s='<h3>Comparación contra la versión original</h3>';const us=S.units.filter(chg);if(!us.length)s+='<p class="mut">Todavía no hay cambios.</p>';
+us.forEach(u=>{s+=`<div class="card"><div class="path">${h(u.path.join(' › '))}</div><b>${h(u.name)}</b> ${u.st=='new'?'<span class="tag new">Nueva</span>':u.st=='del'?'<span class="tag del">Baja</span>':''}`;
+if(u.st=='new')s+=`<p><ins>${h(u.resp)}</ins></p><ul>${u.acc.map(a=>`<li><ins>${h(a)}</ins></li>`).join('')}</ul>`;
+else if(u.st=='del')s+=`<p><del>${h(u.o.resp)}</del></p>`;
+else{const o=u.o;s+=`<p>${dh(lineDiff([...o.path,o.name],head(u)).flat())}</p>`;if(S.hasResp)s+=`<p>${dh(wd(o.resp,u.resp))}</p>`;s+=`<ul>${lineDiff(o.acc,u.acc).map(x=>`<li>${dh(x)}</li>`).join('')}</ul>`}s+=u.note?`<div class="mut">Justificación: ${h(u.note)}</div></div>`:'</div>'});
+s+='<h3>Registro de auditoría</h3><div class="wrap">'+(S.log.map(l=>`<div class="log"><b>${h(names[l.u]||(DB?'Usuario':l.u))}</b> · ${new Date(l.t).toLocaleString('es-AR')} · ${h(l.un)} · <i>${h(l.f)}</i>${l.a||l.b?`<br>${dh(wd(l.a,l.b))}`:''}</div>`).join('')||'<span class="mut">Sin registros.</span>')+'</div>';return s}
+function cri(){return`<div class="card"><b>Criterios de redacción (reglas automáticas)</b><p class="mut">Una regla por línea: <code>texto incorrecto => texto correcto</code>. No distingue mayúsculas al detectar. Se avisa mientras escriben y se corrige al guardar.</p><textarea style="min-height:220px" oninput="S.rules=this.value;saveMeta()">${h(S.rules)}</textarea><label>Guía de criterios de redacción (pegá el texto del manual; la IA lo usa como referencia)</label><textarea style="min-height:200px" oninput="S.crit=this.value;saveMeta()">${h(S.crit||'')}</textarea><button class="d" onclick="if(confirm('¿Borrar todos los datos de este navegador?')){localStorage.removeItem('dndo1');location.reload()}">Reiniciar datos</button></div>`}
+// ---- importar .docx
+async function imp(f){if(!f)return;const z=await JSZip.loadAsync(await f.arrayBuffer()),x=new DOMParser().parseFromString(await z.file('word/document.xml').async('string'),'text/xml'),W='http://schemas.openxmlformats.org/wordprocessingml/2006/main';
+const P=[...x.getElementsByTagNameNS(W,'p')].map(p=>({t:[...p.getElementsByTagNameNS(W,'t')].map(e=>e.textContent).join('').trim(),l:p.getElementsByTagNameNS(W,'numPr').length>0})).filter(p=>p.t);
+const U=[],T=[];let hd=[],cur=null,mode='';S.hasResp=P.some(p=>/^RESPONSABILIDAD PRIMARIA/.test(p.t));
+for(const p of P){if(/^RESPONSABILIDAD PRIMARIA/.test(p.t)){mode='rp';cur=cur||mkU(hd);continue}if(/^ACCIONES/.test(p.t)){mode='ac';cur=cur||mkU(hd);continue}
+if(mode=='ac'&&p.l){cur.acc.push(p.t);continue}if(mode=='rp'&&!cur.resp){cur.resp=p.t;continue}if(mode=='ac'&&!p.l||mode=='rp'){if(cur&&(cur.acc.length||cur.resp)){fin(cur);cur=null;hd=[]}mode=''}hd.push(p.t)}
+if(cur)fin(cur);function mkU(h){return{path:h.slice(0,-1),name:h[h.length-1]||'',resp:'',acc:[]}}function fin(c){U.push(mk(c.path,c.name,c.resp,c.acc))}
+if(!U.length)return alert('No se detectaron unidades en el archivo.');
+S.title=P.slice(0,3).map(p=>p.t).filter(t=>/PLANILLA|^\(ANEXO/.test(t));const L=U.map((u,i)=>{u.path=u.path.filter(t=>!/PLANILLA|^\(ANEXO/.test(t));u.o.path=[...u.path];u.n=i;return u});
+if(DB){$('#v').innerHTML='<p>Importando '+L.length+' unidades…</p>';try{const old=await DB.collection('units').get();await Promise.all(old.docs.map(d=>DB.doc('units/'+d.id).delete()));for(let i=0;i<L.length;i+=10)await Promise.all(L.slice(i,i+10).map(pu))}catch(e){alert(e.message)}}else S.units=L;
+saveMeta();addLog({t:new Date().toISOString(),u:uid(),id:'',un:f.name,f:'Importación',a:'',b:L.length+' unidades'});S.tab='est';draw()}
+// ---- exportar .docx (con control de cambios real de Word)
+function exp(T){let n=1;const A=h(who()),D=new Date().toISOString(),r=(t,b,k)=>`<w:r>${b?'<w:rPr><w:b/></w:rPr>':''}<w:${k=='-'?'delText':'t'} xml:space="preserve">${h(t)}</w:${k=='-'?'delText':'t'}></w:r>`,
+run=(o,b)=>o[0]=='='||!T&&o[0]=='+'?r(o[1],b):T?`<w:${o[0]=='+'?'ins':'del'} w:id="${n++}" w:author="${A}" w:date="${D}">${r(o[1],b,o[0])}</w:${o[0]=='+'?'ins':'del'}>`:'',
+para=(ops,b,ind)=>`<w:p><w:pPr>${ind?'<w:ind w:left="567" w:hanging="283"/>':''}</w:pPr>${(ind?[['=','• ']]:[]).map(o=>r(o[1],b)).join('')}${ops.map(o=>run(o,b)).join('')}</w:p>`,
+one=(a,b,k,bold,ind)=>para(k=='+'?[['+',b]]:k=='-'?[['-',a]]:wd(a,b),bold,ind);let x=S.title.map(t=>one(t,t,'=',1)).join('');
+S.units.forEach(u=>{if(!T&&u.st=='del')return;const k=u.st=='new'?'+':u.st=='del'?'-':'=',o=u.o||{path:[],name:'',resp:'',acc:[]},hs=k=='='?lineDiff([...o.path,o.name],head(u)):head(u).map(t=>[[k,t]]);
+x+=hs.map(ops=>para(ops,1)).join('');if(S.hasResp){x+=one('RESPONSABILIDAD PRIMARIA','RESPONSABILIDAD PRIMARIA',k,1);x+=k=='='?para(wd(o.resp,u.resp)):one(o.resp,u.resp,k)}
+x+=one('ACCIONES:','ACCIONES:',k,1);x+=(k=='='?lineDiff(o.acc,u.acc):(k=='-'?o.acc:u.acc).map(t=>[[k,t]])).map(ops=>para(ops,0,1)).join('')+'<w:p/>'});
+const z=new JSZip();z.file('[Content_Types].xml','<?xml version="1.0" encoding="UTF-8"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>');
+z.file('_rels/.rels','<?xml version="1.0" encoding="UTF-8"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>');
+z.file('word/document.xml',`<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>${x}</w:body></w:document>`);
+z.generateAsync({type:'blob'}).then(async b=>{const nm=T?'Anexo_con_cambios.docx':'Anexo_limpio.docx';let d=null;try{d=window.claude?await claude.use('downloads'):null}catch(e){}
+if(d)d.save({filename:nm,data:b}).catch(()=>{});else{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=nm;a.click()}})}
+async function ia(){const el=$('#ia');el.innerHTML='<div class="al">Analizando…</div>';const t=(S.hasResp?'RESPONSABILIDAD PRIMARIA:\n'+$('#f-resp').value+'\n':'')+'ACCIONES:\n'+$('#f-acc').value;
+try{await SM(`Sos analista de la Dirección Nacional de Diseño Organizacional (Administración Pública Nacional, Argentina). Revisá el texto de la unidad "${$('#f-name').value}".\nCriterios institucionales de redacción:\n${(S.crit||'(no cargados)').slice(0,6000)}\nAdemás detectá: ambigüedades, superposición de competencias entre acciones, acciones que no se desprenden de la responsabilidad primaria, verbos imprecisos y faltas de estilo normativo. Respondé en español formal con una lista breve (máximo 6 puntos): frase afectada y propuesta de mejora. Si el texto está correcto, decilo.\n\nTEXTO:\n${t}`,{cache:false,onText:x=>el.innerHTML='<div class="al" style="white-space:pre-wrap">'+h(x.text)+'</div>'})}catch(e){el.innerHTML='<div class="al">No se pudo consultar a la IA ('+h(e.code||e.message)+')</div>'}}
+async function rn(){if(!USR||!USR.profiles)return;const ids=[...new Set([ME,...S.log.map(l=>l.u)])].filter(Boolean);try{const p=await USR.profiles(ids);ids.forEach(i=>names[i]=(p[i]&&p[i].name)||'');draw0()}catch(e){}}
+async function init(){if(!window.claude)return;try{DB=await claude.use('db');USR=await claude.use('user');SM=await claude.use('sample')}catch(e){}
+if(USR&&USR.id)try{ME=await USR.id()}catch(e){}if(!DB){draw();return}
+S.units=[];S.log=[];DB.doc('meta/main').onSnapshot(s=>{if(s.exists){const d=s.data();S.title=d.title||S.title;S.hasResp=!!d.hasResp;S.rules=d.rules||DEF;S.crit=d.crit||''}draw0()},()=>{});
+DB.collection('units').onSnapshot(q=>{DBU=q.docs.map(d=>d.data());sync()},e=>alert('Error de datos: '+e.message));
+DB.collection('log').orderBy('t','desc').limit(200).onSnapshot(q=>{S.log=q.docs.map(d=>d.data());rn();draw0()},()=>{});draw()}
+draw();init();
+</script></body></html>
